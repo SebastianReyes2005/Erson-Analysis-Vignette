@@ -1,0 +1,701 @@
+---
+title: "Erson Analysis"
+output: html_document
+date: "2025-02-06"
+author: "Sebastian Reyes"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## 1. Introduction
+
+The below framework outlines a workflow I designed to streamline the steps outlined in this [Seurat vignette](https://satijalab.org/seurat/articles/pbmc3k_tutorial) for the purposes needed by the Erson Lab in the summer of 2024--when I made this. Really, the entire framework below is a reframing of this vignette to better suit the specific needs of the Erson Lab—from the perspective of my specific project, anyway.
+
+To explain the "custom functions" created below: many of these functions are used repeatedly with different parameters during the exploratory analyses I conducted on the Erson Lab's samples. Making these custom functions quickened the workflow and allowed parameters to more easily be edited.
+
+That said, reading the aforementioned [Seurat vignette](https://satijalab.org/seurat/articles/pbmc3k_tutorial) would provide the reader with the vast majority of the information contained in the below outline.
+
+## 2. Installing Packages Needed
+
+```{r, eval = FALSE}
+install.packages("dplyr")
+install.packages("Seurat")
+install.packages("patchwork")
+install.packages("tibble")
+install.packages("SingleR")
+install.packages("SCINA")
+BiocManager::install("celldex")
+install.packages("ggplot2")
+```
+
+## 3. Loading Packages Needed
+
+```{r, eval = FALSE}
+library(dplyr)
+library(Seurat)
+library(patchwork)
+library(tibble)
+library(SingleR)
+library(SCINA)
+library(celldex)
+library(ggplot2)
+```
+
+## 4. All Custom Functions Used
+
+###  CreateSeuratObject
+
+-   **Explanation**: more easily creates a Seurat object based on file directory
+
+-   **Parameters**:
+
+    -   fileDirectory: file path (must be h5 file for this specific function)
+
+    -   objectName: self-explanatory
+
+    -   projectName: self-explanatory
+
+```{r, eval = FALSE}
+CreateSeuratObject <- function(fileDirectory, objectName, projectName) {
+  rawCounts <- Read10X_h5(fileDirectory)
+  seurat_obj <- Seurat::CreateSeuratObject(counts = rawCounts, project = projectName, min.cells = 3, min.features = 200)
+  assign(objectName, seurat_obj, envir = .GlobalEnv)
+  return(objectName)
+}
+```
+
+### MakeVlnPlot
+
+-   **Explanation**: more easily creates violin plots for QC purposes
+
+    -   nFeature_RNA = gives the number of unique features (genes) in a given cell, each point represents one cell
+
+    -   nCount_RNA = gives the total number of RNA molecules in a cell, each point represents one cell
+
+    -   percent.mt = percentage of mitochondrial RNA, each point represents one cell
+
+```{r, eval = FALSE}
+MakeVlnPlot <- function(seuratObject) {
+  print(VlnPlot(seuratObject, features = c("nFeature_RNA", "nCount_RNA", "percent.mt"), ncol = 3))
+  return(seuratObject)
+}
+```
+
+### AddMitoRna
+
+-   **Explanation**: appends mitochondrial RNA data to Seurat object on a cell-by-cell basis
+
+```{r, eval = FALSE}
+AddMitoRna <- function(seuratObject){
+  seuratObject[["percent.mt"]] <- Seurat::PercentageFeatureSet(seuratObject, pattern = "^MT-")
+  return(seuratObject)
+}
+```
+
+### QCSeurat
+
+-   **Explanation:** streamlines the quality control process, allows for low-quality cells to be eliminated based on feature count and mitochondrial RNA percentage
+
+-   **Parameters:**
+
+    -   seuratObject = seuratObject to be trimmed
+
+    -   minFeature = minimum number of genes a cell must contain to remain included in data
+
+    -   maxFeature = maximum number of genes a cell can contain to remain included in data
+
+    -   percentMT = maximum percentage of mitochondrial RNA which a cell can contain to remain included in data
+
+```{r, eval = FALSE}
+QCSeurat <- function(seuratObject, minFeature, maxFeature, percentMT) {
+  seuratObject <- subset(seuratObject, subset = nFeature_RNA > minFeature & nFeature_RNA < maxFeature & percent.mt < percentMT)
+  return(seuratObject)
+}
+```
+
+### MakeFeaturePlot
+
+-   **Explanation**: Makes scatterplot showing correlation between 2 features (genes) of a seurat object
+
+```{r, eval = FALSE}
+MakeFeaturePlot <- function(seuratObject, feature1, feature2) {
+  plot1 <- FeatureScatter(seuratObject, feature1 = feature1, feature2 = feature2)
+  print(plot1)
+}
+```
+
+### NormalizeAndVariable
+
+-   **Explanation**: normalizes data, finds genes within Seurat object that display variable expression patterns, and creates a plot highlighting the top 10 genes with the highest degree of variability in their expression.
+
+```{r, eval = FALSE}
+NormalizeAndVariable <- function(seuratObject) {
+  seuratObject <- NormalizeData(seuratObject)
+  seuratObject <- FindVariableFeatures(seuratObject, selection.method = "vst", nfeatures = 2000)
+  top10 <- head(VariableFeatures(seuratObject), 5)
+  plot1 <- VariableFeaturePlot(seuratObject)
+  plot2 <- LabelPoints(plot = plot1, points = top10, repel = TRUE)
+  print(plot2)
+  return(seuratObject)
+}
+```
+
+### Scale
+
+-   **Explanation**: scales the Seurat object as per the workflow outlined in the Seurat vignette
+
+```{r, eval = FALSE}
+Scale <- function(seuratObject) {
+  seuratObject <- ScaleData(seuratObject, features = rownames(seuratObject))
+  seuratObject <- ScaleData(seuratObject, vars.to.regress = "percent.mt",)
+  return(seuratObject)
+}
+```
+
+### PcaElbow
+
+-   **Explanation:** Runs a principal component analysis and creates an elbow plot based on it
+
+```{r, eval = FALSE}
+PcaElbow <- function(seuratObject) {
+  seuratObject <- RunPCA(seuratObject, features = VariableFeatures(seuratObject))
+  print(ElbowPlot(object = seuratObject))
+  return(seuratObject)
+}
+```
+
+### MakeHeatmap
+
+-   **Explanation:** Creates one heatmap for every principal component included in `PcNumberVector`
+
+    -   `PcNumberVector` should be a numeric vector
+
+```{r, eval = FALSE}
+MakeHeatmap <- function(seuratObject, PcNumberVector){
+  DimHeatmap(seuratObject, dims = PcNumberVector, balanced = TRUE)
+  return(seuratObject)
+}
+```
+
+### FindCellClusters
+
+-   **Explanation:** finds clusters of cells based of principal component behavior
+
+-   **Parameters**:
+
+    -   seuratObject = self-explanatory
+
+    -   PCs = a numeric vector containing the principal components to be used
+
+    -   resolution = a value between 0 and 1; defines the granularity of the clusters
+
+-   Cluster assignments may be found via the dataframe `seuratObject@meta.data`, column = `seurat_clusters`
+
+```{r, eval = FALSE}
+FindCellClusters <- function(seuratObject, PCs, resolution) {
+  seuratObject2 <- FindNeighbors(seuratObject, dims = PCs)
+  seuratObject3 <- FindClusters(seuratObject2, resolution = resolution)
+  return(seuratObject3)
+}
+```
+
+### MakeUMAP
+
+-   **Explanation:** makes a UMAP plot based on the specified principal components
+
+-   **Parameters:**
+
+    -   seuratObject = self-explanatory
+
+    -   PCs = a numeric vector containing the principal components to be used
+
+```{r, eval = FALSE}
+MakeUMAP <- function(seuratObject1, PCs) {
+  seuratObject2 <- RunUMAP(seuratObject1, dims = PCs)
+  print(DimPlot(seuratObject2, reduction = "umap"))
+  return(seuratObject2)
+}
+```
+
+### FindPosMarkers
+
+-   **Explanation:** Finds markers that are upregulated within previously established clusters
+
+```{r, eval = FALSE}
+FindPosMarkers <- function(seuratObject){
+  posMarkers <- FindAllMarkers(seuratObject, only.pos = TRUE)
+  posMarkers %>%
+    group_by(cluster) %>%
+    dplyr::filter(avg_log2FC >1)
+  return(seuratObject)
+}
+```
+
+### Top5Markers
+
+-   **Explanation:** Prints out the top 5 most upregulated genetic markers, on a cluster-by-cluster basis
+
+```{r, eval = FALSE}
+Top5Markers <- function(seuratObject) {
+  posMarkers <- FindAllMarkers(seuratObject, only.pos = TRUE)
+  separatedMarkers <- posMarkers %>%
+    dplyr::filter(avg_log2FC >1) %>%
+    group_by(cluster) %>%
+    slice_head(n = 5)
+  print(separatedMarkers, n = Inf)
+}
+```
+
+### SingleHPCA
+
+-   **Explanation:** Annotates each individual cell based on its expression profile's closest match within the Human Primary Cell Atlas reference dataset; based on the use of SingleR
+
+    -   HPCA dataset is more generic than the below neuroendocrine or immune cell datasets, but is good for establishing an initial tissue composition overview
+
+    -   Cell identities may be found via the dataframe `seuratObject@meta.data`, column = `HPCACellLabels`
+
+```{r, eval = FALSE}
+SingleHPCA <- function(seuratObject){
+  HpcaLabels <- SingleR(test = as.SingleCellExperiment(seuratObject), 
+                        ref =    HumanPrimaryCellAtlasData(), 
+                        labels = HumanPrimaryCellAtlasData()$label.main)
+  seuratObject1 <- AddMetaData(seuratObject, 
+                               metadata = HpcaLabels@listData[["labels"]], 
+                               col.name = "HPCACellLabels")
+  return(seuratObject1)
+}
+```
+
+### SingleImmune
+
+-   **Explanation:** Annotates each cell identified based on its expression profiles' closest match within the dataset from the paper linked [here](https://www.science.org/doi/10.1126/science.abl5197), via the use of [SCINA](https://pmc.ncbi.nlm.nih.gov/articles/PMC6678337/).
+
+-   **Note:** SCINA is used in place of SingleR due to the different structure of the reference dataset.
+
+-   **Note:** The function is named *`Single`*`Immune` purely for syntax consistency, as the function serves the same effective purpose as the aforementioned `SingleHPCA` despite using SCINA instead of SingleR.
+
+    -   Reference dataset is of immune cells
+
+    -   Reference dataset file is in the GitHub repository and should automatically be utilized when calling this function
+
+#### Reference Dataset
+
+```{r}
+ImmuneRef <- read.csv("~/Documents/Erson_Lab/Datasets/CellIDReferences/Immune Cells/E-CURD-122.marker_genesymbols_inferred_cell_type_SCINA.csv")
+ImmuneRef_list <- lapply(1:39, function(i) {
+  genes <- ImmuneRef[, i]
+  genes <- genes[!is.na(genes)]
+  return(genes)
+})
+
+names(ImmuneRef_list) <- colnames(ImmuneRef)
+ImmuneRef <- ImmuneRef_list
+rm(ImmuneRef_list)
+```
+
+#### Function
+
+```{r, eval = FALSE}
+SingleImmune <- function(seuratObject) {
+  
+SeuratObjectExpressionData <- as.matrix(GetAssayData(seuratObject, assay = "RNA", layer = "data"))
+
+#NOTE: significant overlap of genetic signatures between cell types--had to set rm_overlap to FALSE
+
+results <- SCINA(SeuratObjectExpressionData, ImmuneRef, rm_overlap = FALSE)
+seuratObject1 <- AddMetaData(seuratObject, metadata = results$cell_labels, col.name = "ImmuneCellLabels")
+Idents(seuratObject1) <- "ImmuneCellLabels"
+return(seuratObject1)
+}
+```
+
+### SingleNeuro
+
+-   **Explanation:** Annotates each individual cell its expression profile's closest match within the dataset linked from the paper linked [here](https://www.nature.com/articles/s41467-020-19012-4), via the use of SingleR
+
+    -   Reference dataset is of neuroendocrine cells
+
+    -   Reference dataset file is in the GitHub repository and should automatically be utilized when calling this function
+
+#### Reference Dataset
+
+```{r}
+
+#Just run entire chunk
+
+NeuroMeta <- read.csv("~/Documents/Erson_Lab/Datasets/CellIDReferences/Neuroendocrine Cells/GSE142653_pit_dev_CellInfo.csv.gz")
+
+NeuroExpression <- read.csv("~/Documents/Erson_Lab/Datasets/CellIDReferences/Neuroendocrine Cells/GSE142653_pit_dev_5181_count.csv.gz")
+
+columns_to_keep <- colnames(NeuroExpression) %in% NeuroMeta$X | colnames(NeuroExpression) == "X"
+
+NeuroExpressionFiltered <- NeuroExpression[, columns_to_keep]
+
+rm(NeuroExpression)
+
+rownames(NeuroExpressionFiltered) <- NeuroExpressionFiltered[,1]
+NeuroExpressionFiltered <- NeuroExpressionFiltered[,-1]
+
+NeuroExpressionFiltered <- NeuroExpressionFiltered %>%
+  mutate(across(everything(), as.numeric))
+
+NeuroIDs <- as.character(NeuroMeta$cell_type)
+names(NeuroIDs) <- colnames(NeuroExpressionFiltered)
+
+rm(NeuroMeta)
+NeuroExpressionFiltered <- as.matrix(NeuroExpressionFiltered)
+
+
+```
+
+#### Function
+
+```{r, eval = FALSE}
+SingleNeuro <- function(seuratObject) {
+  # Function to run SingleR
+  NeuroClusterLabels <- SingleR(test = as.SingleCellExperiment(seuratObject),
+                                ref = NeuroExpressionFiltered,
+                                labels = NeuroIDs)
+  
+  #To add SingleR output to Seurat Object
+  seuratObject1 <- AddMetaData(seuratObject, metadata = NeuroClusterLabels@listData[["labels"]], col.name = "NeuroCellLabels")
+  
+  #To group everything by Neuro Cell Type
+  Idents(seuratObject1) <- "NeuroCellLabels"
+  return(seuratObject1)
+}
+```
+
+### SingleUnbiasedNeuro
+
+-   **Explanation:** Annotates each individual cluster previously identified via principal component analysis (aka via `FindCellClusters`) based on its expression profiles' closest match within the dataset linked from the paper linked [here](https://www.nature.com/articles/s41467-020-19012-4), via the use of SingleR
+
+    -   Reference dataset is of neuroendocrine cells (same as `SingleNeuro`)
+
+    -   Reference dataset file is in the GitHub repository and should automatically be utilized when calling this function
+
+```{r, eval = FALSE}
+SingleUnbiasedNeuro <- function(seuratObject){
+  
+  # Create a table of `seurat_clusters` vs `NeuroCellLabels`
+  cluster_label_counts <- table(seuratObject@meta.data$seurat_clusters, 
+                                seuratObject@meta.data$NeuroCellLabels)
+  
+  # Identify the most abundant label for each cluster
+  most_abundant_labels <- apply(cluster_label_counts, 1, function(x) {
+    names(x)[which.max(x)] # Returns the label with the highest count
+  })
+  
+  # Relabel `seurat_clusters` with the most abundant `NeuroCellLabels`
+  seuratObject@meta.data$UnbiasedNeuroCellLabels <- factor(seuratObject@meta.data$seurat_clusters, levels = names(most_abundant_labels), labels = most_abundant_labels)
+  return(seuratObject)
+}
+```
+
+### SingleUnbiasedImmune
+
+-   **Explanation:** Annotates each individual cluster previously identified via principle component analysis (aka via `FindCellClusters`) based on its expression profiles' closest match within the dataset from the paper linked [here](https://www.science.org/doi/10.1126/science.abl5197), via the use of [SCINA](https://pmc.ncbi.nlm.nih.gov/articles/PMC6678337/).
+
+-   **Note:** SCINA is used in place of SingleR due to the different structure of the reference dataset.
+
+-   **Note:** The function is named *`Single`*`UnbiasedImmune` purely for syntax consistency, as the function serves the same effective purpose as the aforementioned `SingleUnbiasedNeuro`, despite using SCINA instead of SingleR.
+
+    -   Reference dataset is of immune cells
+
+    -   Reference dataset file is in the GitHub repository and should automatically be utilized when calling this function
+
+```{r, eval = FALSE}
+SingleUnbiasedImmune <- function(seuratObject){
+  # Create a contingency table of `seurat_clusters` vs `NeuroCellLabels`
+  cluster_label_counts <- table(seuratObject@meta.data$seurat_clusters, 
+                                seuratObject@meta.data$ImmuneCellLabels)
+  
+  # Identify the most abundant label for each cluster
+  most_abundant_labels <- apply(cluster_label_counts, 1, function(x) {
+    names(x)[which.max(x)] # Returns the label with the highest count
+  })
+  
+  # Relabel seurat_clusters with the most abundant NeuroCellLabel within them
+  seuratObject@meta.data$UnbiasedImmuneCellLabels <- factor(seuratObject@meta.data$seurat_clusters, levels = names(most_abundant_labels), labels = most_abundant_labels)
+  
+  return(seuratObject)
+}
+```
+
+### BarPlotIdPercent
+
+-   **Explanation:** Creates a barplot detailing the percentage each cell identity makes up of the total sample
+
+    -   **Note:** the `Identity` parameter needs to be a character string in quotation marks for the function to work properly
+
+-   **Parameters:**
+
+    -   **Identity**: the cell annotation that will be used to make the barplot
+
+        -   e.g. `"NeuroCellLabels"` or `"seurat_clusters"`
+
+```{r, eval = FALSE}
+#To create an inclusive barplot based on cell identities 
+
+BarPlotIdPercent <- function(seuratObject, Identity){
+  
+  TotalCells <- dim(seuratObject@meta.data)[1]
+  
+  cellIdentities <- seuratObject@meta.data[[Identity]]
+  
+  cellCounts <- table(cellIdentities)
+  
+  cellCountsDF <- as.data.frame(cellCounts)
+  
+  colnames(cellCountsDF) <- c("CellIdentity", "Count")
+  
+  ggplot(cellCountsDF, aes(x = CellIdentity, 
+                           y = Count/TotalCells*100, 
+                           fill = CellIdentity)) + 
+    geom_bar(stat = "identity") +
+    theme_minimal() + 
+    labs(title = "Distribution of Cell Types", x = "Cell Identity", y = "Percentage of Cells") +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+    theme(text = element_text("sans"))
+}
+
+```
+
+## 5. Samples
+
+### Sample 1
+
+#### Initial QC
+
+```{r}
+CreateSeuratObject("~/Documents/Erson_Lab/Datasets/Erson Samples/PA_SC_SR/DATA1/DATA1.H5",
+                   "sample1", 
+                   "sample1")
+sample1 <- AddMitoRna(sample1)
+MakeVlnPlot(sample1)
+sample1 <- QCSeurat(sample1, 200, 3000, 25)
+MakeFeaturePlot(sample1, "nCount_RNA", "percent.mt")
+MakeFeaturePlot(sample1, "nCount_RNA", "nFeature_RNA")
+sample1 <- NormalizeAndVariable(sample1)
+sample1 <- Scale(sample1)
+sample1 <- PcaElbow(sample1)
+MakeHeatmap(sample1, 1:8)
+```
+
+#### General Exploratory Analyses
+
+```{r}
+sample1 <- FindCellClusters(sample1, 1:7, 0.5)
+sample1 <- RunUMAP(sample1, dims = 1:7)
+sample1 <- FindPosMarkers(sample1)
+sample1 <- SingleHPCA(sample1)
+sample1 <- SingleNeuro()
+sample1 <- SingleImmune(sample1)
+```
+
+#### Specific Exploratory Analysis/Visualizations
+
+```{r}
+#For immune characterization
+    SeuratFiltered <- subset(sample1, subset = NeuroCellLabels == "Imm")
+    CategoryCounts <- SeuratFiltered@meta.data %>%
+      group_by(ImmuneCellLabels) %>%
+      tally()
+    ValidCategories <- CategoryCounts %>% 
+      filter(n >= 5) %>%
+      pull(ImmuneCellLabels)
+    
+    MakeUMAP(sample1, 1:7)
+    
+print(DimPlot(subset(sample1, subset = NeuroCellLabels == "Imm" & ImmuneCellLabels %in% ValidCategories, cols = MyColors), reduction = "umap", group.by = "ImmuneCellLabels", label = FALSE) + ggtitle("Immune Cell Types"))
+Idents(sample1) <- sample1@meta.data$NeuroCellLabels
+BarPlot(sample1, 8224) + ggtitle("Unbiased Neuroendocrine Cell Type Distribution")
+
+```
+
+### Sample 2
+
+```{r}
+CreateSeuratObject("~/Documents/Erson_Lab/Datasets/Erson Samples/PA_SC_SR/DATA2/filtered_feature_bc_matrix.h5",
+                   "sample2", 
+                   "sample2" )
+sample2 <- AddMitoRna(sample2)
+MakeVlnPlot(sample2)
+dim(sample2)
+sample2 <- QCSeurat(sample2, 200, 5000, 30)
+dim(sample2)
+MakeFeaturePlot(sample2, "nCount_RNA", "nFeature_RNA")
+sample2 <- NormalizeAndVariable(sample2)
+sample2 <- Scale(sample2)
+sample2 <- PcaElbow(sample2)
+sample2 <- RunUMAP(sample2, dims = 1:9)
+sample2 <- FindCellClusters(sample2, 1:9, 0.5)
+DimPlot(sample2, reduction = "umap", label = TRUE) 
+sample2 <- FindPosMarkers(sample2)
+sample2 <- SingleUnbiasedNeuro(sample2)
+
+    #For immune characterization
+    SeuratFiltered <- subset(sample2, subset = NeuroCellLabels == "Imm")
+    CategoryCounts <- SeuratFiltered@meta.data %>%
+      group_by(ImmuneCellLabels) %>%
+      tally()
+    ValidCategories <- CategoryCounts %>% 
+      filter(n >= 5) %>%
+      pull(ImmuneCellLabels)
+
+print(DimPlot(subset(sample2, subset = NeuroCellLabels == "Imm" & ImmuneCellLabels %in% ValidCategories), reduction = "umap", group.by = "ImmuneCellLabels") + ggtitle("Sample 2 Immune Cell Types"))
+Idents(sample2) <- sample2@meta.data$UnbiasedNeuroCellLabels
+BarPlot(sample2, 7359) + ggtitle("Unbiased Neuroendocrine Cell Type Distribution")
+```
+
+### Sample 3
+
+```{r}
+CreateSeuratObject("~/Documents/Erson_Lab/Datasets/Erson Samples/PA_SC_SR/DATA3/filtered_feature_bc_matrix.h5",
+                   "sample3", 
+                   "sample3")
+sample3 <- AddMitoRna(sample3)
+MakeVlnPlot(sample3)
+dim(sample3)
+sample3 <- QCSeurat(sample3, 200, 4000, 40)
+dim(sample3)
+MakeFeaturePlot(sample3, "nCount_RNA", "percent.mt")
+MakeFeaturePlot(sample3, "nCount_RNA", "nFeature_RNA")
+sample3 <- NormalizeAndVariable(sample3)
+sample3 <- Scale(sample3)
+sample3 <- PcaElbow(sample3)
+MakeHeatmap(sample3, 1:10)
+sample3 <- FindCellClusters(sample3, 1:10, 1)
+sample3 <- RunUMAP(sample3, dims = 1:10)
+DimPlot(sample3, reduction = "umap", label = TRUE, group.by = "UnbiasedNeuroCellLabels")
+sample3 <- FindPosMarkers(sample3)
+sample3 <- SingleUnbiasedNeuro(sample3)
+
+#For immune characterization
+SeuratFiltered <- subset(sample3, subset = NeuroCellLabels == "Imm")
+CategoryCounts <- SeuratFiltered@meta.data %>%
+  group_by(ImmuneCellLabels) %>%
+  tally()
+ValidCategories <- CategoryCounts %>% 
+  filter(n >= 5) %>%
+  pull(ImmuneCellLabels)
+
+print(DimPlot(subset(sample3, subset = NeuroCellLabels == "Imm" & ImmuneCellLabels %in% ValidCategories), reduction = "umap", group.by = "ImmuneCellLabels") + ggtitle("Sample 3 Immune Cell Types"))
+Idents(sample3) <- sample3@meta.data$UnbiasedNeuroCellLabels
+BarPlot(sample3, 6200) + ggtitle("Unbiased Neuroendocrine Cell Type Distribution")
+
+```
+
+### Sample 4
+
+```{r}
+CreateSeuratObject("~/Documents/Erson_Lab/Datasets/Erson Samples/PA_SC_SR/DATA4/filtered_feature_bc_matrix.h5",
+                   "sample4", 
+                   "sample4" )
+sample4 <- AddMitoRna(sample4)
+MakeVlnPlot(sample4)
+dim(sample4)
+sample4 <- QCSeurat(sample4, 200, 5000, 7)
+dim(sample4)
+MakeFeaturePlot(sample4, "nCount_RNA", "percent.mt")
+MakeFeaturePlot(sample4, "nCount_RNA", "nFeature_RNA")
+sample4 <- NormalizeAndVariable(sample4)
+sample4 <- Scale(sample4)
+sample4 <- PcaElbow(sample4)
+MakeHeatmap(sample4, 1:11)
+sample4 <- FindCellClusters(sample4, 1:11, 1)
+sample4 <- FindPosMarkers(sample4)
+sample4 <- SingleUnbiasedNeuro(sample4)
+sample4 <- RunUMAP(sample4, dims = 1:11)
+print(DimPlot(sample4, reduction = "umap", group.by = "UnbiasedNeuroCellLabels", label = TRUE) + ggtitle("Unbiased Neuroendocrine Cell Types"))
+Idents(sample4) <- sample4@meta.data$UnbiasedNeuroCellLabels
+    
+    #for immune characterization
+    SeuratFiltered <- subset(sample4, subset = NeuroCellLabels == "Imm")
+    CategoryCounts <- SeuratFiltered@meta.data %>%
+      group_by(ImmuneCellLabels) %>%
+      tally()
+    ValidCategories <- CategoryCounts %>% 
+      filter(n >= 1) %>%
+      pull(ImmuneCellLabels)
+
+BarPlot(sample4, 14986) + ggtitle("Unbiased Neuroendocrine Cell Type Distribution")
+BarPlot(sample4, 14986)
+VlnPlot(sample4, features = "STAT6") +  NoLegend() + ggtitle("STAT6 (P3/CD/Tumor)")
+```
+
+### Sample 5
+
+```{r}
+#Sample 5
+CreateSeuratObject("~/Documents/Erson_Lab/Datasets/Erson Samples/PA_SC_SR/DATA5/filtered_feature_bc_matrix.h5",
+                   "sample5", 
+                   "sample5" )
+sample5 <- AddMitoRna(sample5)
+MakeVlnPlot(sample5)
+dim(sample5)
+sample5 <- QCSeurat(sample5, 200, 2000, 40)
+dim(sample5)
+MakeFeaturePlot(sample5, "nCount_RNA", "percent.mt")
+MakeFeaturePlot(sample5, "nCount_RNA", "nFeature_RNA")
+sample5 <- NormalizeAndVariable(sample5)
+sample5 <- Scale(sample5)
+sample5 <- PcaElbow(sample5)
+MakeHeatmap(sample5, 1:12)
+sample5 <- FindCellClusters(sample5, 1:9, 1.5)
+sample5 <- FindPosMarkers(sample5)
+sample5 <- SingleUnbiasedNeuro(sample5)
+sample5 <- RunUMAP(sample5, dims = 1:9)
+print(DimPlot(sample5, reduction = "umap", group.by = "UnbiasedNeuroCellLabels") + ggtitle("Unbiased Neuroendocrine Cell Types"))
+Idents(sample5) <- sample5@meta.data$UnbiasedNeuroCellLabels
+
+#for immune characterization
+SeuratFiltered <- subset(sample5, subset = NeuroCellLabels == "Imm")
+CategoryCounts <- SeuratFiltered@meta.data %>%
+  group_by(ImmuneCellLabels) %>%
+  tally()
+ValidCategories <- CategoryCounts %>% 
+  filter(n >= 1) %>%
+  pull(ImmuneCellLabels)
+BarPlot(sample5, 1638) + ggtitle("Neuroendocrine Cell Distribution")
+```
+
+### Sample 6 (Omitted)
+
+### Sample 7
+
+```{r}
+CreateSeuratObject("~/Documents/Erson_Lab/Datasets/Erson Samples/PA_SC_SR/DATA7/filtered_feature_bc_matrix.h5",
+                   "sample7", 
+                   "sample7")
+sample7 <- AddMitoRna(sample7)
+MakeVlnPlot(sample7)
+dim(sample7)
+sample7 <- QCSeurat(sample7, 200, 2000, 9)
+dim(sample7)
+MakeFeaturePlot(sample7, "nCount_RNA", "percent.mt")
+MakeFeaturePlot(sample7, "nCount_RNA", "nFeature_RNA")
+sample7 <- NormalizeAndVariable(sample7)
+sample7 <- Scale(sample7)
+sample7 <- PcaElbow(sample7)
+MakeHeatmap(sample7, 1:12)
+sample7 <- FindCellClusters(sample7, 1:9, 1)
+sample7 <- FindPosMarkers(sample7) 
+sample7 <- SingleUnbiasedNeuro(sample7)
+sample7 <- RunUMAP(sample7, dims = 1:9)
+print(DimPlot(sample7, reduction = "umap", group.by = "UnbiasedNeuroCellLabels", label = TRUE) + ggtitle("Unbiased Neuroendocrine Cell Types"))
+Idents(sample7) <- sample7@meta.data$UnbiasedNeuroCellLabels
+BarPlot(sample7, 10370) + ggtitle("Unbiased Neuroendocrine Cell Types")
+
+#for immune characterization
+SeuratFiltered <- subset(sample7, subset = NeuroCellLabels == "Imm")
+CategoryCounts <- SeuratFiltered@meta.data %>%
+    group_by(ImmuneCellLabels) %>%
+    tally()
+    ValidCategories <- CategoryCounts %>% 
+    filter(n >= 1) %>%
+    pull(ImmuneCellLabels)
+BarPlot(subset(sample7, subset = NeuroCellLabels == "Imm"), 10370) + ggtitle("Immune Cell Distribution")
+```
