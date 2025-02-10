@@ -45,7 +45,7 @@ library(ggplot2)
 
 ## 4. All Custom Functions Used
 
-###  CreateSeuratObject
+### CreateSeuratObject
 
 -   **Explanation**: more easily creates a Seurat object based on file directory
 
@@ -282,7 +282,7 @@ SingleHPCA <- function(seuratObject){
 
 #### Reference Dataset
 
-```{r}
+```{r, eval = FALSE}
 ImmuneRef <- read.csv("~/Documents/Erson_Lab/Datasets/CellIDReferences/Immune Cells/E-CURD-122.marker_genesymbols_inferred_cell_type_SCINA.csv")
 ImmuneRef_list <- lapply(1:39, function(i) {
   genes <- ImmuneRef[, i]
@@ -321,7 +321,7 @@ return(seuratObject1)
 
 #### Reference Dataset
 
-```{r}
+```{r, eval = FALSE}
 
 #Just run entire chunk
 
@@ -469,7 +469,7 @@ BarPlotIdPercent <- function(seuratObject, Identity){
 
 #### Initial QC
 
-```{r}
+```{r, eval = FALSE}
 CreateSeuratObject("~/Documents/Erson_Lab/Datasets/Erson Samples/PA_SC_SR/DATA1/DATA1.H5",
                    "sample1", 
                    "sample1")
@@ -486,7 +486,7 @@ MakeHeatmap(sample1, 1:8)
 
 #### General Exploratory Analyses
 
-```{r}
+```{r, eval = FALSE}
 sample1 <- FindCellClusters(sample1, 1:7, 0.5)
 sample1 <- RunUMAP(sample1, dims = 1:7)
 sample1 <- FindPosMarkers(sample1)
@@ -497,7 +497,7 @@ sample1 <- SingleImmune(sample1)
 
 #### Specific Exploratory Analysis/Visualizations
 
-```{r}
+```{r, eval = FALSE}
 #For immune characterization
     SeuratFiltered <- subset(sample1, subset = NeuroCellLabels == "Imm")
     CategoryCounts <- SeuratFiltered@meta.data %>%
@@ -517,7 +517,7 @@ BarPlot(sample1, 8224) + ggtitle("Unbiased Neuroendocrine Cell Type Distribution
 
 ### Sample 2
 
-```{r}
+```{r, eval = FALSE}
 CreateSeuratObject("~/Documents/Erson_Lab/Datasets/Erson Samples/PA_SC_SR/DATA2/filtered_feature_bc_matrix.h5",
                    "sample2", 
                    "sample2" )
@@ -552,7 +552,7 @@ BarPlot(sample2, 7359) + ggtitle("Unbiased Neuroendocrine Cell Type Distribution
 
 ### Sample 3
 
-```{r}
+```{r, eval = FALSE}
 CreateSeuratObject("~/Documents/Erson_Lab/Datasets/Erson Samples/PA_SC_SR/DATA3/filtered_feature_bc_matrix.h5",
                    "sample3", 
                    "sample3")
@@ -590,7 +590,7 @@ BarPlot(sample3, 6200) + ggtitle("Unbiased Neuroendocrine Cell Type Distribution
 
 ### Sample 4
 
-```{r}
+```{r, eval = FALSE}
 CreateSeuratObject("~/Documents/Erson_Lab/Datasets/Erson Samples/PA_SC_SR/DATA4/filtered_feature_bc_matrix.h5",
                    "sample4", 
                    "sample4" )
@@ -628,7 +628,7 @@ VlnPlot(sample4, features = "STAT6") +  NoLegend() + ggtitle("STAT6 (P3/CD/Tumor
 
 ### Sample 5
 
-```{r}
+```{r, eval = FALSE}
 #Sample 5
 CreateSeuratObject("~/Documents/Erson_Lab/Datasets/Erson Samples/PA_SC_SR/DATA5/filtered_feature_bc_matrix.h5",
                    "sample5", 
@@ -666,7 +666,7 @@ BarPlot(sample5, 1638) + ggtitle("Neuroendocrine Cell Distribution")
 
 ### Sample 7
 
-```{r}
+```{r, eval = FALSE}
 CreateSeuratObject("~/Documents/Erson_Lab/Datasets/Erson Samples/PA_SC_SR/DATA7/filtered_feature_bc_matrix.h5",
                    "sample7", 
                    "sample7")
