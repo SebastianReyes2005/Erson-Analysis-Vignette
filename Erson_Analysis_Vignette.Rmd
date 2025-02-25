@@ -10,13 +10,63 @@ knitr::opts_chunk$set(echo = TRUE)
 getwd()
 ```
 
+## 0. Knitting this Document
+
 ```{r, eval = FALSE, include = FALSE}
 # this chunk knits the document
-# prior to knitting, run the chunk below
+# if all necessary objects are not loaded into the environment, clearit and run the chunk below prior to knitting
 rmarkdown::render("~/Documents/GitHub/Erson-Analysis/Erson-Analysis.Rmd", envir = globalenv())
 ```
 
-```{r}
+```{r, include = FALSE, eval = FALSE}
+# if all necessary objects are not loaded into environment, clear it and then run this chunk prior to knitting
+#this code is also integrated below into the function examples themselves
+
+# for MakeVlnPlot() example
+CreateSeuratObject("~/Documents/Erson_Lab/Datasets/Erson Samples/PA_SC_SR/DATA1/DATA1.H5",
+                   "ex_sample1", 
+                   "ex_sample1")
+ex_sample1 <- AddMitoRna(ex_sample1)
+
+#for QCSeurat() example
+ex_sample2 <- ex_sample1
+
+#for NormalizeAndVariable() example
+ex_sample3 <- ex_sample2
+ex_sample3 <- QCSeurat(ex_sample3, 200, 3000, 25)
+
+#for PcaElbow() example
+ex_sample4 <- ex_sample3
+ex_sample4 <- NormalizeAndVariable(ex_sample4)
+ex_sample4 <- Scale(ex_sample4)
+
+#for MakeHeatMap() example
+ex_sample5 <- ex_sample4
+ex_sample5 <- PcaElbow(ex_sample5)
+
+#for FindCellClusters() example
+ex_sample6 <- ex_sample5
+
+#for MakeUMAP() example
+ex_sample7 <- ex_sample6
+ex_sample7 <- FindCellClusters(ex_sample7)
+
+#for Top5Markers() example
+ex_sample8 <- ex_sample7
+ex_sample8 <- RunUMAP(ex_sample8, 1:7)
+
+#for SingleHPCA() example
+
+#for SingleNeuro() example
+
+#for SingleImmune() example
+
+#for SingleUnbiasedNeuro() example
+
+#for SingleUnbiasedImmune() example
+
+
+
 
 ```
 
@@ -237,7 +287,7 @@ PcaElbow <- function(seuratObject) {
 
 #### Example:
 
-```{r, include = FALSE}
+```{r, include = FALSE, eval = FALSE}
 #run this chunk before knitting, it's just to prevent visualizations from bugging out when knitting the document
 ex_sample4 <- ex_sample3
 
@@ -388,7 +438,7 @@ Top5Markers <- function(seuratObject) {
 
 #### Example:
 
-```{r}
+```{r, include = FALSE, eval = FALSE}
 #run this chunk before knitting, it's just to prevent visualizations from bugging out when knitting the document
 ex_sample8 <- ex_sample7
 # DO NOT run the chunk below this manually. the first time it is run should be when the document is knitted
