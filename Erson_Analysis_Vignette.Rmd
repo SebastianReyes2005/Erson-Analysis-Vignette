@@ -1,8 +1,10 @@
 ---
 title: "Erson Analysis"
-output: html_document
-date: "2025-02-06"
 author: "Sebastian Reyes"
+date: "2025-02-06"
+output:
+  html_document: default
+  pdf_document: default
 ---
 
 ```{r setup, include=FALSE}
@@ -14,8 +16,8 @@ getwd()
 
 ```{r, eval = FALSE, include = FALSE}
 # this chunk knits the document
-# if all necessary objects are not loaded into the environment, clearit and run the chunk below prior to knitting
-rmarkdown::render("~/Documents/GitHub/Erson-Analysis/Erson-Analysis.Rmd", envir = globalenv())
+# if all necessary objects are not loaded into the environment, clear it and run the chunk below prior to knitting
+rmarkdown::render("~/Documents/GitHub/Erson-Analysis/Erson_Analysis_Vignette.Rmd", envir = globalenv())
 ```
 
 ```{r, include = FALSE, eval = FALSE}
@@ -26,6 +28,7 @@ rmarkdown::render("~/Documents/GitHub/Erson-Analysis/Erson-Analysis.Rmd", envir 
 CreateSeuratObject("~/Documents/Erson_Lab/Datasets/Erson Samples/PA_SC_SR/DATA1/DATA1.H5",
                    "ex_sample1", 
                    "ex_sample1")
+
 ex_sample1 <- AddMitoRna(ex_sample1)
 
 #for QCSeurat() example
@@ -49,7 +52,7 @@ ex_sample6 <- ex_sample5
 
 #for MakeUMAP() example
 ex_sample7 <- ex_sample6
-ex_sample7 <- FindCellClusters(ex_sample7)
+ex_sample7 <- FindCellClusters(ex_sample7, 1:7, 0.5)
 
 #for Top5Markers() example
 ex_sample8 <- ex_sample7
@@ -607,7 +610,6 @@ rm(ImmuneRef_list)
 #### Function
 
 ```{r, eval = FALSE}
-
 SingleImmune <- function(seuratObject) {
   
 SeuratObjectExpressionData <- as.matrix(GetAssayData(seuratObject, assay = "RNA", layer = "data"))
