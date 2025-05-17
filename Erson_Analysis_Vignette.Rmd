@@ -14,10 +14,11 @@ getwd()
 
 ## 0. Knitting this Document
 
-```{r, eval = FALSE, include = FALSE}
+```{r, eval = FALSE}
 # this chunk knits the document
 # if all necessary objects are not loaded into the environment, clear it and run the chunk below prior to knitting
-rmarkdown::render("~/Documents/GitHub/Erson-Analysis/Erson_Analysis_Vignette.Rmd", envir = globalenv())
+rmarkdown::render("Erson_Analysis_Vignette.Rmd", envir = globalenv())
+
 ```
 
 ```{r, include = FALSE, eval = FALSE}
@@ -192,7 +193,8 @@ BarPlotIdPercent <- function(seuratObject, Identity){
 
 
 # for MakeVlnPlot() example
-CreateSeuratObject("~/Documents/Erson_Lab/Datasets/Erson Samples/PA_SC_SR/DATA1/DATA1.H5",
+
+CreateSeuratObject("DATA1.H5",
                    "ex_sample1", 
                    "ex_sample1")
 
@@ -388,7 +390,7 @@ MakeVlnPlot <- function(seuratObject) {
 
 ```{r, eval = FALSE}
 # Must be run previously:
-CreateSeuratObject("~/Documents/Erson_Lab/Datasets/Erson Samples/PA_SC_SR/DATA1/DATA1.H5",
+CreateSeuratObject("DATA1.H5",
                    "ex_sample1", 
                    "ex_sample1")
 ex_sample1 <- AddMitoRna(ex_sample1)
