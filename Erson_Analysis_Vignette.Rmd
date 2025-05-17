@@ -1,7 +1,7 @@
 ---
-title: "Erson Analysis"
+title: "Erson Analysis Vignette"
 author: "Sebastian Reyes"
-date: "2025-02-06"
+date: "2025-05-16"
 output:
   html_document: default
   pdf_document: default
@@ -23,6 +23,173 @@ rmarkdown::render("~/Documents/GitHub/Erson-Analysis/Erson_Analysis_Vignette.Rmd
 ```{r, include = FALSE, eval = FALSE}
 # if all necessary objects are not loaded into environment, clear it and then run this chunk prior to knitting
 #this code is also integrated below into the function examples themselves
+
+# Functions
+#To create an inclusive barplot based on cell identities 
+CreateSeuratObject <- function(fileDirectory, objectName, projectName) {
+  rawCounts <- Read10X_h5(fileDirectory)
+  seurat_obj <- Seurat::CreateSeuratObject(counts = rawCounts, 
+                                           project = projectName, 
+                                           min.cells = 3, 
+                                           min.features = 200)
+  assign(objectName, seurat_obj, envir = .GlobalEnv)
+  return(objectName)
+}
+
+AddMitoRna <- function(seuratObject){
+  seuratObject[["percent.mt"]] <- Seurat::PercentageFeatureSet(seuratObject, pattern = "^MT-")
+  return(seuratObject)
+}
+
+MakeVlnPlot <- function(seuratObject) {
+  print(VlnPlot(seuratObject, 
+                features = c("nFeature_RNA", 
+                             "nCount_RNA", 
+                             "percent.mt"), 
+                ncol = 3))
+  return(seuratObject)
+}
+
+QCSeurat <- function(seuratObject, minFeature, maxFeature, percentMT) {
+  seuratObject <- subset(seuratObject, subset = nFeature_RNA > minFeature & nFeature_RNA < maxFeature & percent.mt < percentMT)
+  return(seuratObject)
+}
+
+NormalizeAndVariable <- function(seuratObject) {
+  seuratObject <- NormalizeData(seuratObject)
+  seuratObject <- FindVariableFeatures(seuratObject, selection.method = "vst", nfeatures = 2000)
+  top10 <- head(VariableFeatures(seuratObject), 5)
+  plot1 <- VariableFeaturePlot(seuratObject)
+  plot2 <- LabelPoints(plot = plot1, points = top10, repel = TRUE)
+  print(plot2)
+  return(seuratObject)
+}
+
+Scale <- function(seuratObject) {
+  seuratObject <- ScaleData(seuratObject, features = rownames(seuratObject))
+  seuratObject <- ScaleData(seuratObject, vars.to.regress = "percent.mt",)
+  return(seuratObject)
+}
+
+PcaElbow <- function(seuratObject) {
+  seuratObject <- RunPCA(seuratObject, features = VariableFeatures(seuratObject))
+  print(ElbowPlot(object = seuratObject))
+  return(seuratObject)
+}
+
+MakeHeatmap <- function(seuratObject, PcNumberVector){
+  DimHeatmap(seuratObject, dims = PcNumberVector, balanced = TRUE)
+  return(seuratObject)
+}
+
+MakeUMAP <- function(seuratObject1, PCs) {
+  seuratObject2 <- RunUMAP(seuratObject1, dims = PCs)
+  print(DimPlot(seuratObject2, reduction = "umap"))
+  return(seuratObject2)
+}
+
+FindPosMarkers <- function(seuratObject){
+  posMarkers <- FindAllMarkers(seuratObject, only.pos = TRUE)
+  posMarkers %>%
+    group_by(cluster) %>%
+    dplyr::filter(avg_log2FC >1)
+  return(seuratObject)
+}
+
+Top5Markers <- function(seuratObject) {
+  posMarkers <- FindAllMarkers(seuratObject, only.pos = TRUE)
+  separatedMarkers <- posMarkers %>%
+    dplyr::filter(avg_log2FC >1) %>%
+    group_by(cluster) %>%
+    slice_head(n = 5)
+  print(separatedMarkers, n = Inf)
+}
+
+SingleHPCA <- function(seuratObject){
+  HpcaLabels <- SingleR(test = as.SingleCellExperiment(seuratObject), 
+                        ref =    HumanPrimaryCellAtlasData(), 
+                        labels = HumanPrimaryCellAtlasData()$label.main)
+  seuratObject1 <- AddMetaData(seuratObject, 
+                               metadata = HpcaLabels@listData[["labels"]], 
+                               col.name = "HPCACellLabels")
+  return(seuratObject1)
+}
+
+SingleNeuro <- function(seuratObject) {
+  # Function to run SingleR
+  NeuroClusterLabels <- SingleR(test = as.SingleCellExperiment(seuratObject),
+                                ref = NeuroExpressionFiltered,
+                                labels = NeuroIDs)
+  
+  #To add SingleR output to Seurat Object
+  seuratObject1 <- AddMetaData(seuratObject, metadata = NeuroClusterLabels@listData[["labels"]], col.name = "NeuroCellLabels")
+  
+  #To group everything by Neuro Cell Type
+  Idents(seuratObject1) <- "NeuroCellLabels"
+  return(seuratObject1)
+}
+
+SingleImmune <- function(seuratObject) {
+  
+SeuratObjectExpressionData <- as.matrix(GetAssayData(seuratObject, assay = "RNA", layer = "data"))
+
+results <- SCINA(SeuratObjectExpressionData, ImmuneRef, rm_overlap = FALSE)
+seuratObject1 <- AddMetaData(seuratObject, metadata = results$cell_labels, col.name = "ImmuneCellLabels")
+Idents(seuratObject1) <- "ImmuneCellLabels"
+return(seuratObject1)
+}
+
+SingleUnbiasedNeuro <- function(seuratObject){
+  
+  # Create a table of `seurat_clusters` vs `NeuroCellLabels`
+  cluster_label_counts <- table(seuratObject@meta.data$seurat_clusters, 
+                                seuratObject@meta.data$NeuroCellLabels)
+  
+  # Identify the most abundant label for each cluster
+  most_abundant_labels <- apply(cluster_label_counts, 1, function(x) {
+    names(x)[which.max(x)] # Returns the label with the highest count
+  })
+  
+  # Relabel `seurat_clusters` with the most abundant `NeuroCellLabels`
+  seuratObject@meta.data$UnbiasedNeuroCellLabels <- factor(seuratObject@meta.data$seurat_clusters, levels = names(most_abundant_labels), labels = most_abundant_labels)
+  return(seuratObject)
+}
+
+SingleUnbiasedImmune <- function(seuratObject){
+  cluster_label_counts <- table(seuratObject@meta.data$seurat_clusters, 
+                                seuratObject@meta.data$ImmuneCellLabels)
+  
+  most_abundant_labels <- apply(cluster_label_counts, 1, function(x) {
+    names(x)[which.max(x)] 
+  })
+  
+  seuratObject@meta.data$UnbiasedImmuneCellLabels <- factor(seuratObject@meta.data$seurat_clusters, levels = names(most_abundant_labels), labels = most_abundant_labels)
+  
+  return(seuratObject)
+}
+
+BarPlotIdPercent <- function(seuratObject, Identity){
+  
+  TotalCells <- dim(seuratObject@meta.data)[1]
+  
+  cellIdentities <- seuratObject@meta.data[[Identity]]
+  
+  cellCounts <- table(cellIdentities)
+  
+  cellCountsDF <- as.data.frame(cellCounts)
+  
+  colnames(cellCountsDF) <- c("CellIdentity", "Count")
+  
+  ggplot(cellCountsDF, aes(x = CellIdentity, 
+                           y = Count/TotalCells*100, 
+                           fill = CellIdentity)) + 
+    geom_bar(stat = "identity") +
+    theme_minimal() + 
+    labs(title = "Distribution of Cell Types", x = "Cell Identity", y = "Percentage of Cells") +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+    theme(text = element_text("sans"))
+}
+
 
 # for MakeVlnPlot() example
 CreateSeuratObject("~/Documents/Erson_Lab/Datasets/Erson Samples/PA_SC_SR/DATA1/DATA1.H5",
@@ -56,20 +223,68 @@ ex_sample7 <- FindCellClusters(ex_sample7, 1:7, 0.5)
 
 #for Top5Markers() example
 ex_sample8 <- ex_sample7
-ex_sample8 <- RunUMAP(ex_sample8, 1:7)
+ex_sample8 <- RunUMAP(ex_sample8, dims = 1:7)
 
 #for SingleHPCA() example
+ex_sample9 <- ex_sample8
+ex_sample9 <- SingleHPCA(ex_sample9)
 
 #for SingleNeuro() example
+NeuroMeta <- read.csv("~/Documents/Erson_Lab/Datasets/CellIDReferences/Neuroendocrine Cells/GSE142653_pit_dev_CellInfo.csv.gz")
+
+NeuroExpression <- read.csv("~/Documents/Erson_Lab/Datasets/CellIDReferences/Neuroendocrine Cells/GSE142653_pit_dev_5181_count.csv.gz")
+
+columns_to_keep <- colnames(NeuroExpression) %in% NeuroMeta$X | colnames(NeuroExpression) == "X"
+
+NeuroExpressionFiltered <- NeuroExpression[, columns_to_keep]
+
+rm(NeuroExpression)
+
+rownames(NeuroExpressionFiltered) <- NeuroExpressionFiltered[,1]
+NeuroExpressionFiltered <- NeuroExpressionFiltered[,-1]
+
+NeuroExpressionFiltered <- NeuroExpressionFiltered %>%
+  mutate(across(everything(), as.numeric))
+
+NeuroIDs <- as.character(NeuroMeta$cell_type)
+names(NeuroIDs) <- colnames(NeuroExpressionFiltered)
+
+rm(NeuroMeta)
+NeuroExpressionFiltered <- as.matrix(NeuroExpressionFiltered)
+
+ex_sample10 <- ex_sample9
+ex_sample10 <- SingleNeuro(ex_sample10)
 
 #for SingleImmune() example
 
+ImmuneRef <- read.csv("~/Documents/Erson_Lab/Datasets/CellIDReferences/Immune Cells/E-CURD-122.marker_genesymbols_inferred_cell_type_SCINA.csv")
+
+ImmuneRef_list <- lapply(1:39, function(i) {
+  genes <- ImmuneRef[, i]
+  genes <- genes[!is.na(genes)]
+  return(genes)
+})
+
+names(ImmuneRef_list) <- colnames(ImmuneRef)
+ImmuneRef <- ImmuneRef_list
+rm(ImmuneRef_list)
+
+ex_sample10 <- SingleImmune(ex_sample10)
+ex_sample10imm <- subset(ex_sample10, NeuroCellLabels == "Imm")
+
+CategoryCounts <- ex_sample10imm@meta.data %>%
+  group_by(ImmuneCellLabels) %>%
+  tally()
+
+ValidCategories <- CategoryCounts %>% 
+  filter(n >= 5) %>%
+  pull(ImmuneCellLabels)
+
 #for SingleUnbiasedNeuro() example
+ex_sample10 <- SingleUnbiasedNeuro(ex_sample10)
 
 #for SingleUnbiasedImmune() example
-
-
-
+ex_sample10imm <- SingleUnbiasedImmune(ex_sample10imm)
 
 ```
 
@@ -210,12 +425,6 @@ QCSeurat <- function(seuratObject, minFeature, maxFeature, percentMT) {
 
 #### Example:
 
-```{r, include = FALSE, eval = FALSE}
-#run this chunk before knitting, it's just to prevent visualizations from bugging out when knitting the document
-ex_sample2 <- ex_sample1
-# DO NOT run the chunk below this manually. the first time it is run should be when the document is knitted
-```
-
 ```{r}
 # Violin plot prior to QC
 MakeVlnPlot(ex_sample2)
@@ -245,16 +454,6 @@ NormalizeAndVariable <- function(seuratObject) {
 ```
 
 #### Example:
-
-```{r, include = FALSE, eval = FALSE}
-#run this chunk before knitting, it's just to prevent visualizations from bugging out when knitting the document
-
-ex_sample3 <- ex_sample2
-ex_sample3 <- QCSeurat(ex_sample3, 200, 3000, 25)
-
-# DO NOT run the chunk below this manually. the first time it is run should be when the document is knitted
-
-```
 
 ```{r}
 ex_sample3 <- NormalizeAndVariable(ex_sample3)
@@ -290,12 +489,6 @@ PcaElbow <- function(seuratObject) {
 
 #### Example:
 
-```{r, include = FALSE, eval = FALSE}
-#run this chunk before knitting, it's just to prevent visualizations from bugging out when knitting the document
-ex_sample4 <- ex_sample3
-
-```
-
 ```{r, eval = FALSE}
 # Must be run previously
 ex_sample4 <- Scale(ex_sample4)
@@ -325,12 +518,6 @@ MakeHeatmap <- function(seuratObject, PcNumberVector){
 ```
 
 #### Example:
-
-```{r, include = FALSE}
-#run this chunk before knitting, it's just to prevent visualizations from bugging out when knitting the document
-ex_sample5 <- ex_sample4
-# DO NOT run the chunk below this manually. the first time it is run should be when the document is knitted
-```
 
 ```{r}
 # Note: PcaElbow must be run first, as it attaches PCA data to the Seurat object
@@ -363,12 +550,6 @@ FindCellClusters <- function(seuratObject, PCs, resolution) {
 
 #### Example:
 
-```{r, include = FALSE}
-#run this chunk before knitting, it's just to prevent visualizations from bugging out when knitting the document
-ex_sample6 <- ex_sample5
-# DO NOT run the chunk below this manually. the first time it is run should be when the document is knitted
-```
-
 ```{r}
 # Below code finds 11 clusters
 ex_sample6 <- FindCellClusters(ex_sample6, 1:7, 0.5)
@@ -395,12 +576,6 @@ MakeUMAP <- function(seuratObject1, PCs) {
 ```
 
 #### Example:
-
-```{r, include = FALSE, eval = FALSE}
-#run this chunk before knitting, it's just to prevent visualizations from bugging out when knitting the document
-ex_sample7 <- ex_sample6
-# DO NOT run the chunk below this manually. the first time it is run should be when the document is knitted
-```
 
 ```{r}
 ex_sample7 <- MakeUMAP(ex_sample7, 1:7)
@@ -441,12 +616,6 @@ Top5Markers <- function(seuratObject) {
 
 #### Example:
 
-```{r, include = FALSE, eval = FALSE}
-#run this chunk before knitting, it's just to prevent visualizations from bugging out when knitting the document
-ex_sample8 <- ex_sample7
-# DO NOT run the chunk below this manually. the first time it is run should be when the document is knitted
-```
-
 ```{r}
 # the actual output is 190 rows
 head(Top5Markers(ex_sample8))
@@ -475,18 +644,6 @@ SingleHPCA <- function(seuratObject){
 ```
 
 #### Example:
-
-```{r, include = FALSE, eval = FALSE}
-#run this and the next chunk before knitting, it's just to prevent visualizations from bugging out when knitting the document
-ex_sample9 <- ex_sample1
-ex_sample9 <- AddMitoRna(ex_sample9)
-ex_sample9 <- QCSeurat(ex_sample9, 200, 3000, 25)
-ex_sample9 <- NormalizeAndVariable(ex_sample9)
-ex_sample9 <- Scale(ex_sample9)
-ex_sample9 <- PcaElbow(ex_sample9)
-ex_sample9 <- FindCellClusters(ex_sample9, 1:7, 0.5)
-ex_sample9 <- RunUMAP(ex_sample9, dims = 1:7)
-```
 
 ```{r, eval = FALSE}
 ex_sample9 <- SingleHPCA(ex_sample9)
@@ -559,10 +716,6 @@ SingleNeuro <- function(seuratObject) {
 ```
 
 #### Example:
-
-```{r, include = FALSE, eval = FALSE}
-ex_sample10 <- ex_sample9
-```
 
 ```{r, eval = FALSE}
 ex_sample10 <- SingleNeuro(ex_sample10)
@@ -640,7 +793,6 @@ CategoryCounts <- ex_sample10imm@meta.data %>%
 ValidCategories <- CategoryCounts %>% 
   filter(n >= 5) %>%
   pull(ImmuneCellLabels)
-
 
 ```
 
@@ -753,7 +905,6 @@ DimPlot(ex_sample10imm,
 
 ```{r, eval = FALSE}
 #To create an inclusive barplot based on cell identities 
-
 BarPlotIdPercent <- function(seuratObject, Identity){
   
   TotalCells <- dim(seuratObject@meta.data)[1]
