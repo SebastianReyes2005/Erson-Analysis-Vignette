@@ -84,6 +84,12 @@ MakeHeatmap <- function(seuratObject, PcNumberVector){
   return(seuratObject)
 }
 
+FindCellClusters <- function(seuratObject, PCs, resolution) {
+  seuratObject2 <- FindNeighbors(seuratObject, dims = PCs)
+  seuratObject3 <- FindClusters(seuratObject2, resolution = resolution)
+  return(seuratObject3)
+}
+
 MakeUMAP <- function(seuratObject1, PCs) {
   seuratObject2 <- RunUMAP(seuratObject1, dims = PCs)
   print(DimPlot(seuratObject2, reduction = "umap"))
