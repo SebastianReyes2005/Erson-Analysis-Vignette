@@ -287,7 +287,7 @@ CategoryCounts <- ex_sample10imm@meta.data %>%
   tally()
 
 ValidCategories <- CategoryCounts %>% 
-  filter(n >= 5) %>%
+  filter(n >= 10) %>%
   pull(ImmuneCellLabels)
 
 #for SingleUnbiasedNeuro() example
@@ -803,7 +803,7 @@ CategoryCounts <- ex_sample10imm@meta.data %>%
   tally()
 
 ValidCategories <- CategoryCounts %>% 
-  filter(n >= 5) %>%
+  filter(n >= 10) %>%
   pull(ImmuneCellLabels)
 
 ```
