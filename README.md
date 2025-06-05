@@ -3,4 +3,4 @@ This is a short explanatory vignette I created outlining the workflow I created 
 
 The example dataset used can be found [here](https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSM6337431).
 
-The main file is Erson_Analysis_Vignette.html
+The main file is **Erson_Analysis_Vignette.html**
