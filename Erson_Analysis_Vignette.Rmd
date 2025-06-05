@@ -626,10 +626,12 @@ Top5Markers <- function(seuratObject) {
 
 #### Example:
 
-```{r}
-# the actual output is 190 rows
+```{r, eval = F}
+# the actual output is 65 rows
 head(Top5Markers(ex_sample8))
 ```
+
+![](images/clipboard-2445537838.png)
 
 ### SingleHPCA
 
