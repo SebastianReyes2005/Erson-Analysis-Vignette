@@ -342,9 +342,11 @@ library(ggplot2)
 -   **Parameters**:
     -   fileDirectory: file path (must be h5 file for this specific function)
 
-    -   objectName: self-explanatory
+    -   objectName: name of the Seurat object itself (e.g. "sample1")
 
-    -   projectName: self-explanatory
+    -   projectName: metadata label (e.g. "AsuzuProject")
+
+        -   Used mostly for bookkeeping in Seurat (acts as plot label, etc.)
 
 ```{r, eval = FALSE}
 CreateSeuratObject <- function(fileDirectory, objectName, projectName) {
@@ -358,6 +360,14 @@ CreateSeuratObject <- function(fileDirectory, objectName, projectName) {
 }
 ```
 
+#### Example:
+
+```{r, eval = F}
+CreateSeuratObject("~/Documents/DATA1.H5",
+                   "ex_sample1", 
+                   "ex_sample1")
+```
+
 ### AddMitoRna
 
 #### **Explanation**:
@@ -369,6 +379,12 @@ AddMitoRna <- function(seuratObject){
   seuratObject[["percent.mt"]] <- Seurat::PercentageFeatureSet(seuratObject, pattern = "^MT-")
   return(seuratObject)
 }
+```
+
+#### Example
+
+```{r, eval = F}
+ex_sample1 <- AddMitoRna(ex_sample1)
 ```
 
 ### MakeVlnPlot
@@ -439,7 +455,7 @@ QCSeurat <- function(seuratObject, minFeature, maxFeature, percentMT) {
 # Violin plot prior to QC
 MakeVlnPlot(ex_sample2)
 
-ex_sample2 <- QCSeurat(ex_sample2, 200, 3000, 25)
+ex_sample2 <- QCSeurat(ex_sample2, minFeature = 200, maxFeature = 3000, percentMT = 25)
 
 #Violin plot following QC
 MakeVlnPlot(ex_sample2)
@@ -449,7 +465,7 @@ MakeVlnPlot(ex_sample2)
 
 #### **Explanation**:
 
--   Normalizes data, finds genes within Seurat object that display variable expression patterns, and creates a plot highlighting the top 10 genes with the highest degree of variability in their expression.
+-   Normalizes data **and** finds genes within Seurat object that display variable expression patterns **and** creates a plot highlighting the top 10 genes with the highest degree of variability in their expression.
 
 ```{r, eval = FALSE}
 NormalizeAndVariable <- function(seuratObject) {
@@ -483,11 +499,17 @@ Scale <- function(seuratObject) {
 }
 ```
 
+#### Example
+
+```{r, eval = F}
+ex_sample4 <- Scale(ex_sample4)
+```
+
 ### PcaElbow
 
 #### **Explanation:**
 
--   Runs a principal component analysis and creates an elbow plot based on it
+-   Runs a principal component analysis **and** creates an elbow plot based on it
 
 ```{r, eval = FALSE}
 PcaElbow <- function(seuratObject) {
@@ -602,15 +624,25 @@ FindPosMarkers <- function(seuratObject){
   posMarkers <- FindAllMarkers(seuratObject, only.pos = TRUE)
   posMarkers %>%
     group_by(cluster) %>%
-    dplyr::filter(avg_log2FC >1)
+    dplyr::filter(avg_log2FC > 1)
+  print(posMarkers)
   return(seuratObject)
 }
 ```
+
+#### Example:
+
+```{r, eval = F}
+FindPosMarkers(ex_sample8)
+```
+
+![](images/clipboard-2168704198.png)
 
 ### Top5Markers
 
 #### **Explanation:**
 
+-   Cleaner version of `FindPosMarkers`
 -   Prints out the top 5 most upregulated genetic markers on a cluster-by-cluster basis
 
 ```{r, eval = FALSE}
@@ -827,16 +859,16 @@ DimPlot(subset(ex_sample10imm,  ImmuneCellLabels %in% ValidCategories),
 ```{r, eval = FALSE}
 SingleUnbiasedNeuro <- function(seuratObject){
   
-  # Create a table of `seurat_clusters` vs `NeuroCellLabels`
+# Create a table of seurat_clusters vs NeuroCellLabels
   cluster_label_counts <- table(seuratObject@meta.data$seurat_clusters, 
                                 seuratObject@meta.data$NeuroCellLabels)
   
-  # Identify the most abundant label for each cluster
+# Identify the most abundant label for each cluster
   most_abundant_labels <- apply(cluster_label_counts, 1, function(x) {
     names(x)[which.max(x)] # Returns the label with the highest count
   })
   
-  # Relabel `seurat_clusters` with the most abundant `NeuroCellLabels`
+# Relabel seurat_clusters with the most abundant NeuroCellLabels
   seuratObject@meta.data$UnbiasedNeuroCellLabels <- factor(seuratObject@meta.data$seurat_clusters, levels = names(most_abundant_labels), labels = most_abundant_labels)
   return(seuratObject)
 }
