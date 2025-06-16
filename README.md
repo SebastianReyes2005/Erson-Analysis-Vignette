@@ -3,4 +3,6 @@ This is a short explanatory vignette I created outlining the workflow I created 
 
 The example dataset used can be found [here](https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSM6337431).
 
+Documentation regarding reference datasets utilized for cell characterization in the vignette can be found in the [references_README.md](Reference_Datasets/references_README.md) file.
+
 The main file is **Erson_Analysis_Vignette.html**
