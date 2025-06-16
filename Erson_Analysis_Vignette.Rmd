@@ -240,9 +240,9 @@ ex_sample9 <- SingleHPCA(ex_sample9)
 
 #for SingleNeuro() example
 
-NeuroMeta <- read.csv("Reference Datasets/NeuroMeta.csv.gz")
+NeuroMeta <- read.csv("Reference_Datasets/NeuroMeta.csv.gz")
 
-NeuroExpression <- read.csv("Reference Datasets/NeuroExpression.csv.gz")
+NeuroExpression <- read.csv("Reference_Datasets/NeuroExpression.csv.gz")
 
 columns_to_keep <- colnames(NeuroExpression) %in% NeuroMeta$X | colnames(NeuroExpression) == "X"
 
@@ -267,7 +267,7 @@ ex_sample10 <- SingleNeuro(ex_sample10)
 
 #for SingleImmune() example
 
-ImmuneRef <- read.csv("Reference Datasets/ImmuneRef.csv")
+ImmuneRef <- read.csv("Reference_Datasets/ImmuneRef.csv")
 
 ImmuneRef_list <- lapply(1:39, function(i) {
   genes <- ImmuneRef[, i]
@@ -716,9 +716,9 @@ DimPlot(ex_sample9, reduction = "umap")
 
 #Just run entire chunk
 
-NeuroMeta <- read.csv("Reference Datasets/NeuroMeta.csv.gz")
+NeuroMeta <- read.csv("Reference_Datasets/NeuroMeta.csv.gz")
 
-NeuroExpression <- read.csv("Reference Datasets/NeuroExpression.csv.gz")
+NeuroExpression <- read.csv("Reference_Datasets/NeuroExpression.csv.gz")
 
 columns_to_keep <- colnames(NeuroExpression) %in% NeuroMeta$X | colnames(NeuroExpression) == "X"
 
@@ -792,7 +792,7 @@ DimPlot(ex_sample10,
 #### Reference Dataset
 
 ```{r, eval = FALSE}
-ImmuneRef <- read.csv("Reference Datasets/ImmuneRef.csv")
+ImmuneRef <- read.csv("Reference_Datasets/ImmuneRef.csv")
 ImmuneRef_list <- lapply(1:39, function(i) {
   genes <- ImmuneRef[, i]
   genes <- genes[!is.na(genes)]
