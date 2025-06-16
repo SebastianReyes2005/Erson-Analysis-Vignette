@@ -1,4 +1,4 @@
-## Reference Data Sources
+## Reference Data - Sources
 
 The **neuroendocrine reference datasets** were obtained from the paper [here](https://www.nature.com/articles/s41467-020-19012-4). The corresponding GEO repository may be found at this [link](https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE142653), with the files *GSE142653_pit_dev_CellInfo.csv.gz* and *GSE142653_pit_dev_5181_count.csv.gz* corresponding to the *NeuroMeta.csv.gz* and *NeuroExpression.csv.gz* files, respectively.
 
